@@ -9,6 +9,7 @@ const ContractArguments = [
   CollectionConfig.maxSupply,
   CollectionConfig.whitelistSale.maxMintAmountPerTx,
   CollectionConfig.hiddenMetadataUri,
+  CollectionConfig.royaltyFraction,
 ] as const;
 
 export default ContractArguments;

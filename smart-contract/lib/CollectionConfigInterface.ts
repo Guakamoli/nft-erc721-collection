@@ -14,6 +14,7 @@ export default interface CollectionConfigInterface {
   tokenSymbol: string;
   hiddenMetadataUri: string;
   maxSupply: number;
+  royaltyFraction: number;
   whitelistSale: SaleConfig;
   preSale: SaleConfig;
   publicSale: SaleConfig;

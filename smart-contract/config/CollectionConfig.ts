@@ -14,6 +14,7 @@ const CollectionConfig: CollectionConfigInterface = {
   tokenSymbol: 'MNT',
   hiddenMetadataUri: 'ipfs://__CID__/hidden.json',
   maxSupply: 10000,
+  royaltyFraction: 250,
   whitelistSale: {
     price: 0.05,
     maxMintAmountPerTx: 1,

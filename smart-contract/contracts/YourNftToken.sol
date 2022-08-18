@@ -2,12 +2,13 @@
 
 pragma solidity >=0.8.9 <0.9.0;
 
+import '@openzeppelin/contracts/interfaces/IERC2981.sol';
 import 'erc721a/contracts/extensions/ERC721AQueryable.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
 import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 
-contract YourNftToken is ERC721AQueryable, Ownable, ReentrancyGuard {
+contract YourNftToken is IERC2981, ERC721AQueryable, Ownable, ReentrancyGuard {
 
   using Strings for uint256;
 
@@ -18,6 +19,8 @@ contract YourNftToken is ERC721AQueryable, Ownable, ReentrancyGuard {
   string public uriSuffix = '.json';
   string public hiddenMetadataUri;
   
+  uint96 public royaltyFraction;
+
   uint256 public cost;
   uint256 public maxSupply;
   uint256 public maxMintAmountPerTx;
@@ -32,12 +35,16 @@ contract YourNftToken is ERC721AQueryable, Ownable, ReentrancyGuard {
     uint256 _cost,
     uint256 _maxSupply,
     uint256 _maxMintAmountPerTx,
-    string memory _hiddenMetadataUri
+    string memory _hiddenMetadataUri,
+    uint96 _royaltyFraction
   ) ERC721A(_tokenName, _tokenSymbol) {
+    require(_royaltyFraction <= _feeDenominator(), "ERC2981: royalty fee will exceed salePrice");
+
     setCost(_cost);
     maxSupply = _maxSupply;
     setMaxMintAmountPerTx(_maxMintAmountPerTx);
     setHiddenMetadataUri(_hiddenMetadataUri);
+    royaltyFraction = _royaltyFraction;
   }
 
   modifier mintCompliance(uint256 _mintAmount) {
@@ -126,14 +133,6 @@ contract YourNftToken is ERC721AQueryable, Ownable, ReentrancyGuard {
   }
 
   function withdraw() public onlyOwner nonReentrant {
-    // This will pay HashLips Lab Team 5% of the initial sale.
-    // By leaving the following lines as they are you will contribute to the
-    // development of tools like this and many others.
-    // =============================================================================
-    (bool hs, ) = payable(0x146FB9c3b2C13BA88c6945A759EbFa95127486F4).call{value: address(this).balance * 5 / 100}('');
-    require(hs);
-    // =============================================================================
-
     // This will transfer the remaining contract balance to the owner.
     // Do not remove this otherwise you will not be able to withdraw the funds.
     // =============================================================================
@@ -144,5 +143,24 @@ contract YourNftToken is ERC721AQueryable, Ownable, ReentrancyGuard {
 
   function _baseURI() internal view virtual override returns (string memory) {
     return uriPrefix;
+  }
+
+  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, IERC165) returns (bool) {
+    return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
+  }
+
+  function royaltyInfo(uint256, uint256 salePrice)
+    external
+    view
+    virtual
+    override
+    returns (address, uint256)
+  {
+    uint256 royaltyAmount = (salePrice * royaltyFraction) / _feeDenominator();
+    return (address(this), royaltyAmount);
+  }
+
+  function _feeDenominator() internal pure virtual returns (uint96) {
+    return 10000;
   }
 }
