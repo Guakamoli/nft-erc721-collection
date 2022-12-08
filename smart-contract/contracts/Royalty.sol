@@ -14,32 +14,32 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * fee is specified in basis points by default.
  */
 abstract contract Royalty is Ownable, ERC2981 {
-    /**
-     * @dev Initializes the contract setting the deployer as the initial
-     * royalty receiver.
-     */
-    constructor() {
-        _setDefaultRoyalty(_msgSender(), 0);
-    }
+  /**
+   * @dev Initializes the contract setting the deployer as the initial
+   * royalty receiver.
+   */
+  constructor() {
+    _setDefaultRoyalty(_msgSender(), 0);
+  }
 
-    /**
-     * @dev Sets the royalty information that all ids in this contract will default to.
-     * Can only be called by the owner.
-     *
-     * Requirements:
-     *
-     * - `receiver` cannot be the zero address.
-     * - `feeNumerator` cannot be greater than the fee denominator.
-     */
-    function setRoyalty(address receiver, uint96 feeNumerator) public virtual onlyOwner {
-        _setDefaultRoyalty(receiver, feeNumerator);
-    }
+  /**
+   * @dev Sets the royalty information that all ids in this contract will default to.
+   * Can only be called by the owner.
+   *
+   * Requirements:
+   *
+   * - `receiver` cannot be the zero address.
+   * - `feeNumerator` cannot be greater than the fee denominator.
+   */
+  function setRoyalty(address receiver, uint96 feeNumerator) public virtual onlyOwner {
+    _setDefaultRoyalty(receiver, feeNumerator);
+  }
 
-    /**
-     * @dev Removes royalty information.
-     * Can only be called by the owner.
-     */
-    function renounceRoyalty() public virtual onlyOwner {
-        _deleteDefaultRoyalty();
-    }
+  /**
+   * @dev Removes royalty information.
+   * Can only be called by the owner.
+   */
+  function renounceRoyalty() public virtual onlyOwner {
+    _deleteDefaultRoyalty();
+  }
 }
