@@ -2,13 +2,13 @@
 
 pragma solidity >=0.8.9 <0.9.0;
 
-import '@openzeppelin/contracts/interfaces/IERC2981.sol';
 import 'erc721a/contracts/extensions/ERC721AQueryable.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
-import '@openzeppelin/contracts/security/ReentrancyGuard.sol';
+import './Withdrawable.sol';
+import './Royalty.sol';
 
-contract YourNftToken is IERC2981, ERC721AQueryable, Ownable, ReentrancyGuard {
+contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
 
   using Strings for uint256;
 
@@ -19,8 +19,6 @@ contract YourNftToken is IERC2981, ERC721AQueryable, Ownable, ReentrancyGuard {
   string public uriSuffix = '.json';
   string public hiddenMetadataUri;
   
-  uint96 public royaltyFraction;
-
   uint256 public cost;
   uint256 public maxSupply;
   uint256 public maxMintAmountPerTx;
@@ -35,16 +33,16 @@ contract YourNftToken is IERC2981, ERC721AQueryable, Ownable, ReentrancyGuard {
     uint256 _cost,
     uint256 _maxSupply,
     uint256 _maxMintAmountPerTx,
-    string memory _hiddenMetadataUri,
-    uint96 _royaltyFraction
+    string memory _hiddenMetadataUri
   ) ERC721A(_tokenName, _tokenSymbol) {
-    require(_royaltyFraction <= _feeDenominator(), "ERC2981: royalty fee will exceed salePrice");
-
     setCost(_cost);
     maxSupply = _maxSupply;
     setMaxMintAmountPerTx(_maxMintAmountPerTx);
     setHiddenMetadataUri(_hiddenMetadataUri);
-    royaltyFraction = _royaltyFraction;
+  }
+
+  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, ERC2981) returns (bool) {
+    return super.supportsInterface(interfaceId);
   }
 
   modifier mintCompliance(uint256 _mintAmount) {
@@ -132,35 +130,7 @@ contract YourNftToken is IERC2981, ERC721AQueryable, Ownable, ReentrancyGuard {
     whitelistMintEnabled = _state;
   }
 
-  function withdraw() public onlyOwner nonReentrant {
-    // This will transfer the remaining contract balance to the owner.
-    // Do not remove this otherwise you will not be able to withdraw the funds.
-    // =============================================================================
-    (bool os, ) = payable(owner()).call{value: address(this).balance}('');
-    require(os);
-    // =============================================================================
-  }
-
   function _baseURI() internal view virtual override returns (string memory) {
     return uriPrefix;
-  }
-
-  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, IERC165) returns (bool) {
-    return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
-  }
-
-  function royaltyInfo(uint256, uint256 salePrice)
-    external
-    view
-    virtual
-    override
-    returns (address, uint256)
-  {
-    uint256 royaltyAmount = (salePrice * royaltyFraction) / _feeDenominator();
-    return (address(this), royaltyAmount);
-  }
-
-  function _feeDenominator() internal pure virtual returns (uint96) {
-    return 10000;
   }
 }

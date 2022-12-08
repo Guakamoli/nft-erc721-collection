@@ -56,9 +56,8 @@ describe(CollectionConfig.contractName, function () {
   it('Contract deployment', async function () {
     const Contract = await ethers.getContractFactory(CollectionConfig.contractName);
     contract = await Contract.deploy(...ContractArguments) as NftContractType;
-    await contract.deployed();
 
-    await expect(Contract.deploy(...ContractArguments.slice(0, 6), 10001)).to.be.revertedWith('ERC2981: royalty fee will exceed salePrice');
+    await contract.deployed();
   });
 
   it('Check initial data', async function () {
@@ -68,7 +67,6 @@ describe(CollectionConfig.contractName, function () {
     expect(await contract.maxSupply()).to.equal(CollectionConfig.maxSupply);
     expect(await contract.maxMintAmountPerTx()).to.equal(CollectionConfig.whitelistSale.maxMintAmountPerTx);
     expect(await contract.hiddenMetadataUri()).to.equal(CollectionConfig.hiddenMetadataUri);
-    expect(await contract.royaltyFraction()).to.equal(CollectionConfig.royaltyFraction);
 
     expect(await contract.paused()).to.equal(true);
     expect(await contract.whitelistMintEnabled()).to.equal(false);
@@ -286,7 +284,7 @@ describe(CollectionConfig.contractName, function () {
   it('ERC2981 NFT royalty support', async function () {
     expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
       contract.address,
-      utils.parseEther(String(CollectionConfig.royaltyFraction)),
+      utils.parseEther('0'),
     ]);
   });
 });

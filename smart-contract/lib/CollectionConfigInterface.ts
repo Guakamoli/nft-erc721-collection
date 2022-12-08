@@ -14,7 +14,6 @@ export default interface CollectionConfigInterface {
   tokenSymbol: string;
   hiddenMetadataUri: string;
   maxSupply: number;
-  royaltyFraction: number;
   whitelistSale: SaleConfig;
   preSale: SaleConfig;
   publicSale: SaleConfig;
@@ -22,4 +21,5 @@ export default interface CollectionConfigInterface {
   marketplaceIdentifier: string;
   marketplaceConfig: MarketplaceConfigInterface;
   whitelistAddresses: string[];
+  royaltyBasisPoint: number;
 };

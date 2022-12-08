@@ -14,7 +14,6 @@ const CollectionConfig: CollectionConfigInterface = {
   tokenSymbol: 'MNT',
   hiddenMetadataUri: 'ipfs://__CID__/hidden.json',
   maxSupply: 10000,
-  royaltyFraction: 250,
   whitelistSale: {
     price: 0.05,
     maxMintAmountPerTx: 1,
@@ -31,6 +30,7 @@ const CollectionConfig: CollectionConfigInterface = {
   marketplaceIdentifier: 'my-nft-token',
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
+  royaltyBasisPoint: 250,
 };
 
 export default CollectionConfig;
