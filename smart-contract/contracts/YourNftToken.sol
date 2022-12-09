@@ -41,7 +41,7 @@ contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
     setHiddenMetadataUri(_hiddenMetadataUri);
   }
 
-  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, ERC2981) returns (bool) {
+  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, Royalty) returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 
