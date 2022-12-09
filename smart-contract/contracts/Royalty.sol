@@ -2,24 +2,46 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 /**
  * @dev Implementation of the NFT Royalty Standard, a standardized way to retrieve royalty payment information.
  *
  * Royalty information can be specified globally for all token ids via {setRoyalty}.
  *
- * Royalty is specified as a fraction of sale price. {_feeDenominator} is overridable but defaults to 10000, meaning the
- * fee is specified in basis points by default.
+ * Royalty is specified as a fraction of sale price and fee is specified in basis points.
  */
-abstract contract Royalty is Ownable, ERC2981 {
+abstract contract Royalty is Ownable, IERC2981, ERC165 {
+  struct RoyaltyInfo {
+    address receiver;
+    uint96 royaltyBasisPoint;
+  }
+
+  RoyaltyInfo private _royaltyInfo;
+
+  event RoyaltyChanged(
+    address indexed previousReceiver,
+    uint96 previousRoyaltyBasisPoint,
+    address indexed newReceiver,
+    uint96 newRoyaltyBasisPoint
+  );
+
   /**
-   * @dev Initializes the contract setting the deployer as the initial
-   * royalty receiver.
+   * @dev See {IERC165-supportsInterface}.
    */
-  constructor() {
-    _setDefaultRoyalty(_msgSender(), 0);
+  function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, ERC165) returns (bool) {
+    return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
+  }
+
+  /**
+   * @inheritdoc IERC2981
+   */
+  function royaltyInfo(uint256, uint256 salePrice) external view virtual override returns (address, uint256) {
+    RoyaltyInfo storage royalty = _royaltyInfo;
+    uint256 royaltyAmount = (salePrice * royalty.royaltyBasisPoint) / 10000;
+    return (royalty.receiver, royaltyAmount);
   }
 
   /**
@@ -29,10 +51,21 @@ abstract contract Royalty is Ownable, ERC2981 {
    * Requirements:
    *
    * - `receiver` cannot be the zero address.
-   * - `feeNumerator` cannot be greater than the fee denominator.
+   * - `royaltyBasisPoint` cannot be greater than 10000.
    */
-  function setRoyalty(address receiver, uint96 feeNumerator) public virtual onlyOwner {
-    _setDefaultRoyalty(receiver, feeNumerator);
+  function setRoyalty(address receiver, uint96 royaltyBasisPoint) public virtual onlyOwner {
+    require(royaltyBasisPoint <= 10000, "Royalty: royalty fee will exceed salePrice");
+    require(receiver != address(0), "Royalty: invalid receiver");
+
+    RoyaltyInfo memory oldRoyaltyInfo = _royaltyInfo;
+    _royaltyInfo = RoyaltyInfo(receiver, royaltyBasisPoint);
+
+    emit RoyaltyChanged(
+      oldRoyaltyInfo.receiver,
+      oldRoyaltyInfo.royaltyBasisPoint,
+      receiver,
+      royaltyBasisPoint
+    );
   }
 
   /**
@@ -40,6 +73,13 @@ abstract contract Royalty is Ownable, ERC2981 {
    * Can only be called by the owner.
    */
   function renounceRoyalty() public virtual onlyOwner {
-    _deleteDefaultRoyalty();
+    RoyaltyInfo memory oldRoyaltyInfo = _royaltyInfo;
+    delete _royaltyInfo;
+
+    emit RoyaltyChanged(
+      oldRoyaltyInfo.receiver,
+      oldRoyaltyInfo.royaltyBasisPoint,
+      address(0), 0
+    );
   }
 }
