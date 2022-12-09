@@ -47,10 +47,12 @@ describe(CollectionConfig.contractName, function () {
   let whitelistedUser!: SignerWithAddress;
   let holder!: SignerWithAddress;
   let externalUser!: SignerWithAddress;
+  let treasury!: SignerWithAddress;
+  let treasurer!: SignerWithAddress;
   let contract!: NftContractType;
 
   before(async function () {
-    [owner, whitelistedUser, holder, externalUser] = await ethers.getSigners();
+    [owner, whitelistedUser, holder, externalUser, treasury, treasurer] = await ethers.getSigners();
   });
 
   it('Contract deployment', async function () {
@@ -198,6 +200,9 @@ describe(CollectionConfig.contractName, function () {
     await expect(contract.connect(externalUser).setPaused(false)).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setMerkleRoot('0x0000000000000000000000000000000000000000000000000000000000000000')).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setWhitelistMintEnabled(false)).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(contract.connect(externalUser).setRoyalty(await externalUser.getAddress(), 250)).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(contract.connect(externalUser).renounceRoyalty()).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(contract.connect(externalUser).setWithdrawable(await externalUser.getAddress(), await externalUser.getAddress())).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).withdraw()).to.be.revertedWith('Withdrawable: caller is not the owner nor withdrawer');
   });
     
@@ -286,5 +291,82 @@ describe(CollectionConfig.contractName, function () {
       ethers.constants.AddressZero,
       ethers.constants.Zero,
     ]);
+
+    await contract.setRoyalty(await treasury.getAddress(), 250);
+
+    expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
+      await treasury.getAddress(),
+      utils.parseEther('250'),
+    ]);
+
+    expect((await contract.queryFilter(await contract.filters.RoyaltyChanged(
+      ethers.constants.AddressZero,
+      null,
+      await treasury.getAddress(),
+      null
+    )))[0].args.slice(0, 4)).deep.equal([
+      ethers.constants.AddressZero,
+      ethers.constants.Zero,
+      await treasury.getAddress(),
+      BigNumber.from(250),
+    ]);
+
+    await contract.renounceRoyalty();
+
+    expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
+      ethers.constants.AddressZero,
+      ethers.constants.Zero,
+    ]);
+
+    expect((await contract.queryFilter(await contract.filters.RoyaltyChanged(
+      await treasury.getAddress(),
+      null,
+      ethers.constants.AddressZero,
+      null
+    )))[0].args.slice(0, 4)).deep.equal([
+      await treasury.getAddress(),
+      BigNumber.from(250),
+      ethers.constants.AddressZero,
+      ethers.constants.Zero,
+    ]);
+
+    await expect(contract.setRoyalty(
+      ethers.constants.AddressZero,
+      0
+    )).to.be.revertedWith('Royalty: invalid receiver');
+
+    await expect(contract.setRoyalty(
+      await treasury.getAddress(),
+      20000
+    )).to.be.revertedWith('Royalty: royalty fee will exceed salePrice');
+  });
+
+  it('Withdrawable', async function () {
+    expect(await contract.withdrawInfo()).deep.equal([
+      await owner.getAddress(),
+      ethers.constants.AddressZero,
+    ]);
+
+    await contract.setWithdrawable(await treasury.getAddress(), await treasurer.getAddress());
+
+    expect(await contract.withdrawInfo()).deep.equal([
+      await treasury.getAddress(),
+      await treasurer.getAddress(),
+    ]);
+
+    await expect(contract.setWithdrawable(
+      ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
+    )).to.be.revertedWith('Withdrawable: new receiver account is the zero address');
+
+    let provider = contract.provider;
+    let contractBalance = await provider.getBalance(contract.address);
+    let treasuryBalance = await provider.getBalance(await treasury.getAddress());
+
+    await contract.connect(treasurer).withdraw();
+    await contract.withdraw();
+
+    expect(await provider.getBalance(contract.address)).to.equal(0);
+    expect(await provider.getBalance(await treasury.getAddress())).to.equal(treasuryBalance.add(contractBalance));
   });
 });
