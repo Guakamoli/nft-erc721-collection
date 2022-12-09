@@ -198,7 +198,7 @@ describe(CollectionConfig.contractName, function () {
     await expect(contract.connect(externalUser).setPaused(false)).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setMerkleRoot('0x0000000000000000000000000000000000000000000000000000000000000000')).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setWhitelistMintEnabled(false)).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).withdraw()).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(contract.connect(externalUser).withdraw()).to.be.revertedWith('Withdrawable: caller is not the owner nor withdrawer');
   });
     
   it('Wallet of owner', async function () {
@@ -283,8 +283,8 @@ describe(CollectionConfig.contractName, function () {
 
   it('ERC2981 NFT royalty support', async function () {
     expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
-      contract.address,
-      utils.parseEther('0'),
+      ethers.constants.AddressZero,
+      ethers.constants.Zero,
     ]);
   });
 });
