@@ -7,6 +7,7 @@ async function main() {
 
   // Airdrop mints
   for (let i = 0; i < airdropAddresses.length; i += 100) {
+    console.log('Airdroping...');
     let batchAddrs = airdropAddresses.slice(i, i + 100);
     await (await contract.mintForAddress(1, batchAddrs)).wait();
   }
