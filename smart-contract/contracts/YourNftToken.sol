@@ -72,9 +72,15 @@ contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
 
     _safeMint(_msgSender(), _mintAmount);
   }
-  
-  function mintForAddress(uint256 _mintAmount, address _receiver) public mintCompliance(_mintAmount) onlyOwner {
-    _safeMint(_receiver, _mintAmount);
+
+  function mintForAddress(uint256 _mintAmount, address[] calldata _receiver) public onlyOwner {
+    // Verify airdrop requirements
+    require(_mintAmount > 0 && _mintAmount <= maxMintAmountPerTx, 'Invalid mint amount!');
+    require(totalSupply() + _mintAmount * _receiver.length <= maxSupply, 'Max supply exceeded!');
+
+    for (uint256 i = 0; i < _receiver.length; i++) {
+      _safeMint(_receiver[i], _mintAmount);
+    }
   }
 
   function _startTokenId() internal view virtual override returns (uint256) {
