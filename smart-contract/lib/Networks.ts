@@ -47,6 +47,29 @@ export const ethereumMainnet: NetworkConfigInterface = {
 }
 
 /*
+ * BSC
+ */
+export const bscTestnet: NetworkConfigInterface = {
+  chainId: 97,
+  symbol: 'BNB (test)',
+  blockExplorer: {
+    name: 'BscScan (testnet)',
+    generateContractUrl: (contractAddress: string) => `https://testnet.bscscan.com/address/${contractAddress}`,
+    generateTransactionUrl: (transactionAddress: string) => `https://testnet.bscscan.com/tx/${transactionAddress}`,
+  },
+}
+
+export const bscMainnet: NetworkConfigInterface = {
+  chainId: 56,
+  symbol: 'BNB',
+  blockExplorer: {
+    name: 'BscScan',
+    generateContractUrl: (contractAddress: string) => `https://bscscan.com/address/${contractAddress}`,
+    generateTransactionUrl: (transactionAddress: string) => `https://bscscan.com/tx/${transactionAddress}`,
+  },
+}
+
+/*
  * Polygon
  */
 export const polygonTestnet: NetworkConfigInterface = {
