@@ -8,7 +8,7 @@ import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
 import './Withdrawable.sol';
 import './Royalty.sol';
 
-contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
+contract OGNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
 
   using Strings for uint256;
 
