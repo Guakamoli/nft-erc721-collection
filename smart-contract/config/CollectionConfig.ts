@@ -4,30 +4,30 @@ import * as Marketplaces from '../lib/Marketplaces';
 import whitelistAddresses from './whitelist.json';
 
 const CollectionConfig: CollectionConfigInterface = {
-  testnet: Networks.ethereumTestnet,
-  mainnet: Networks.ethereumMainnet,
+  testnet: Networks.bscTestnet,
+  mainnet: Networks.bscMainnet,
   // The contract name can be updated using the following command:
   // yarn rename-contract NEW_CONTRACT_NAME
   // Please DO NOT change it manually!
-  contractName: 'YourNftToken',
-  tokenName: 'My NFT Token',
-  tokenSymbol: 'MNT',
+  contractName: 'OGNftTokenV2',
+  tokenName: 'REVO OG Pass V2',
+  tokenSymbol: 'REVOOGV2',
   hiddenMetadataUri: 'ipfs://__CID__/hidden.json',
-  maxSupply: 10000,
+  maxSupply: 500,
   whitelistSale: {
     price: 0.05,
     maxMintAmountPerTx: 1,
   },
   preSale: {
     price: 0.07,
-    maxMintAmountPerTx: 2,
+    maxMintAmountPerTx: 1,
   },
   publicSale: {
     price: 0.09,
-    maxMintAmountPerTx: 5,
+    maxMintAmountPerTx: 1,
   },
-  contractAddress: null,
-  marketplaceIdentifier: 'my-nft-token',
+  contractAddress: "0xa7208d6fBaCa3857F7BeB31C9a9553Cd4324d3fc",
+  marketplaceIdentifier: "revo-og-pass-v2",
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
   royaltyBasisPoint: 250,

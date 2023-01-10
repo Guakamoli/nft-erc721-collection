@@ -51,7 +51,7 @@ export const ethereumMainnet: NetworkConfigInterface = {
  */
 export const bscTestnet: NetworkConfigInterface = {
   chainId: 97,
-  symbol: 'BNB (test)',
+  symbol: 'tBNB',
   blockExplorer: {
     name: 'BscScan (testnet)',
     generateContractUrl: (contractAddress: string) => `https://testnet.bscscan.com/address/${contractAddress}`,
