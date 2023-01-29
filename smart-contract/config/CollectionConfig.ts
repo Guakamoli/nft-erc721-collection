@@ -9,11 +9,11 @@ const CollectionConfig: CollectionConfigInterface = {
   // The contract name can be updated using the following command:
   // yarn rename-contract NEW_CONTRACT_NAME
   // Please DO NOT change it manually!
-  contractName: 'OGNftTokenV2',
-  tokenName: 'REVO OG Pass V2',
-  tokenSymbol: 'REVOOGV2',
-  hiddenMetadataUri: 'ipfs://__CID__/hidden.json',
-  maxSupply: 500,
+  contractName: "OGNftTokenV2",
+  tokenName: "REVO OG Pass V2",
+  tokenSymbol: "REVOOGV2",
+  hiddenMetadataUri: "ipfs://__CID__/hidden.json",
+  maxSupply: 10000,
   whitelistSale: {
     price: 0.05,
     maxMintAmountPerTx: 1,
@@ -26,7 +26,7 @@ const CollectionConfig: CollectionConfigInterface = {
     price: 0.09,
     maxMintAmountPerTx: 1,
   },
-  contractAddress: "0xa7208d6fBaCa3857F7BeB31C9a9553Cd4324d3fc",
+  contractAddress: "0xAE53147f42636e3D6D1afFB4fbb24db0799087ec",
   marketplaceIdentifier: "revo-og-pass-v2",
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
