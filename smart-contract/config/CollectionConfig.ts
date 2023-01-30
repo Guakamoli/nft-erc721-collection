@@ -26,7 +26,7 @@ const CollectionConfig: CollectionConfigInterface = {
     price: 0.09,
     maxMintAmountPerTx: 1,
   },
-  contractAddress: "0xAE53147f42636e3D6D1afFB4fbb24db0799087ec",
+  contractAddress: "0x0Cb385aE95d0BB21FCFbBf0ae5a3E756F48ca8D2",
   marketplaceIdentifier: "revo-og-pass-v2",
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
