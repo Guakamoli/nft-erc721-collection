@@ -38,8 +38,13 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   bool public whitelistMintEnabled = false;
   bool public revealed = false;
 
-  // Token treasury address
-  address private treasury;
+  // Treasury for minting fees and royalties
+  address public treasury;
+
+  event TreasuryChanged(
+    address indexed previousTreasury,
+    address indexed newTreasury
+  );
 
   constructor(
     string memory _tokenName,
@@ -50,18 +55,19 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     uint256 _maxMintAmountPerTx,
     string memory _hiddenMetadataUri
   ) ERC721A(_tokenName, _tokenSymbol) {
-    setCost(_cost);
-    setWhitelistMintCost(_whitelistMintCost);
-    setMaxSupply(_maxSupply);
-    setMaxMintAmountPerTx(_maxMintAmountPerTx);
-    setHiddenMetadataUri(_hiddenMetadataUri);
-
-    _pause();
     _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
 
     _grantRole(MINTER_ROLE, _msgSender());
     _grantRole(DRAWER_ROLE, _msgSender());
     _grantRole(REVEAL_ROLE, _msgSender());
+
+    _pause();
+
+    setCost(_cost);
+    setWhitelistMintCost(_whitelistMintCost);
+    setMaxSupply(_maxSupply);
+    setMaxMintAmountPerTx(_maxMintAmountPerTx);
+    setHiddenMetadataUri(_hiddenMetadataUri);
   }
 
   function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControlEnumerable, ERC2981, ERC721A) returns (bool) {
@@ -149,7 +155,7 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
 
     string memory currentBaseURI = _baseURI();
     string memory cid = tokenCIDs[_tokenId];
-    return bytes(currentBaseURI).length > 0 && bytes(cid).length > 0
+    return (bytes(currentBaseURI).length > 0 && bytes(cid).length > 0)
       ? string(abi.encodePacked(currentBaseURI, cid, uriSuffix))
       : '';
   }
@@ -199,11 +205,19 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     whitelistMintEnabled = _state;
   }
 
+  function setTreasury(address _treasury) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    address oldTreasury = treasury;
+    treasury = _treasury;
+    emit TreasuryChanged(oldTreasury, treasury);
+  }
+
   /**
    * @dev This will transfer the balance to the treasury address.
    * Can only be called by DRAWER_ROLE.
    */
-  function withdraw() public virtual onlyRole(DRAWER_ROLE) nonReentrant {
+  function withdraw() public onlyRole(DRAWER_ROLE) nonReentrant {
+    require(treasury != address(0), "forbid withdraw to zero address");
+
     (bool os, ) = payable(treasury).call{value: address(this).balance}("");
     require(os);
   }
@@ -212,14 +226,38 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     return uriPrefix;
   }
 
-  function reset(uint256 tokenId) public virtual onlyRole(MINTER_ROLE) {
+  function resetToken(uint256 tokenId) public onlyRole(MINTER_ROLE) {
     require(_exists(tokenId), 'reset of nonexistent token');
+    _resetToken(tokenId);
+  }
 
+  function _resetToken(uint256 tokenId) internal {
     string memory cid = tokenCIDs[tokenId];
+
     if (bytes(cid).length > 0) {
       delete tokenCIDs[tokenId];
       delete cidExists[cid];
     }
+  }
+
+  modifier onlyOwnerOrApproved(uint256 _tokenId) {
+    address owner = ownerOf(_tokenId);
+
+    if (_msgSender() != owner)
+      if (getApproved(_tokenId) != _msgSender())
+        if (!isApprovedForAll(owner, _msgSender())) {
+            revert ApprovalCallerNotOwnerNorApproved();
+        }
+    _;
+  }
+
+  function setTokenRoyalty(uint256 _tokenId, address _receiver, uint96 _feeBps) public onlyOwnerOrApproved(_tokenId) {
+    (address receiver, ) = royaltyInfo(_tokenId, 0);
+    address owner = ownerOf(_tokenId);
+    require(receiver == address(0) || receiver == owner, 'Royalty receiver must be zero or owner');
+
+    if (_receiver != address(0)) _setTokenRoyalty(_tokenId, _receiver, _feeBps);
+    else _resetTokenRoyalty(_tokenId);
   }
 
   /**
@@ -228,11 +266,7 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   function _burn(uint256 tokenId, bool approvalCheck) internal virtual override {
     super._burn(tokenId, approvalCheck);
 
-    string memory cid = tokenCIDs[tokenId];
-    if (bytes(cid).length > 0) {
-      delete tokenCIDs[tokenId];
-      delete cidExists[cid];
-    }
+    _resetToken(tokenId);
     _resetTokenRoyalty(tokenId);
   }
 }
