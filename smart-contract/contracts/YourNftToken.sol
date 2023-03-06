@@ -63,11 +63,11 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
 
     _pause();
 
-    setCost(_cost);
-    setWhitelistMintCost(_whitelistMintCost);
-    setMaxSupply(_maxSupply);
-    setMaxMintAmountPerTx(_maxMintAmountPerTx);
-    setHiddenMetadataUri(_hiddenMetadataUri);
+    cost = _cost;
+    whitelistMintCost = _whitelistMintCost;
+    maxSupply = _maxSupply;
+    maxMintAmountPerTx = _maxMintAmountPerTx;
+    hiddenMetadataUri = _hiddenMetadataUri;
   }
 
   function supportsInterface(bytes4 interfaceId) public view virtual override(AccessControlEnumerable, ERC2981, ERC721A) returns (bool) {
@@ -226,6 +226,9 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     return uriPrefix;
   }
 
+  /**
+   * @dev This will reset token associated cid and cidExists.
+   */
   function resetToken(uint256 tokenId) public onlyRole(MINTER_ROLE) {
     require(_exists(tokenId), 'reset of nonexistent token');
     _resetToken(tokenId);
