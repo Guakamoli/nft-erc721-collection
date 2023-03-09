@@ -31,26 +31,23 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   string public hiddenMetadataUri;
   
   uint256 public cost;
-  uint256 public whitelistMintCost;
   uint256 public maxSupply;
   uint256 public maxMintAmountPerTx;
 
   bool public whitelistMintEnabled = false;
   bool public revealed = false;
 
-  // Treasury for minting fees and royalties
   address public treasury;
 
-  event TreasuryChanged(
-    address indexed previousTreasury,
-    address indexed newTreasury
-  );
+  // Events
+  event TreasuryChanged(address indexed previousTreasury, address indexed newTreasury);
+  event TokenCIDReset(uint256 indexed tokenId, string previousCID);
+  event RoyaltyChanged(uint256 indexed tokenId, address newReceiver, uint96 newRoyaltyBps);
 
   constructor(
     string memory _tokenName,
     string memory _tokenSymbol,
     uint256 _cost,
-    uint256 _whitelistMintCost,
     uint256 _maxSupply,
     uint256 _maxMintAmountPerTx,
     string memory _hiddenMetadataUri
@@ -64,7 +61,6 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     _pause();
 
     cost = _cost;
-    whitelistMintCost = _whitelistMintCost;
     maxSupply = _maxSupply;
     maxMintAmountPerTx = _maxMintAmountPerTx;
     hiddenMetadataUri = _hiddenMetadataUri;
@@ -89,46 +85,48 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     _;
   }
 
-  modifier whitelistMintPriceCompliance(uint256 _mintAmount) {
-    require(msg.value >= whitelistMintCost * _mintAmount, 'Insufficient funds!');
+  modifier royaltyBpsCompliance(uint256 _royaltyBps) {
+    require(_royaltyBps <= 10000, 'Royalty bps should be less than 10000!');
     _;
   }
 
-  modifier mintFeeCompliance(uint256 _feeBps) {
-    require(_feeBps <= 10000, 'Royalty fee will exceed salePrice!');
-    _;
+  /**
+   * @dev See {IERC2981-royaltyInfo}. Set denominator to 10000 to represent 100%.
+   */
+  function _feeDenominator() internal pure virtual override returns (uint96) {
+    return 10000;
   }
 
-  function whitelistMint(string[] calldata _cids, uint96 _feeBps, bytes memory _signature, bytes32[] calldata _merkleProof) public payable whenNotPaused() mintCompliance(_cids.length) whitelistMintPriceCompliance(_cids.length) mintFeeCompliance(_feeBps) {
+  function whitelistMint(string[] calldata _cids, uint96 _royaltyBps, bytes memory _signature, bytes32[] calldata _merkleProof) public payable mintCompliance(_cids.length) mintPriceCompliance(_cids.length) royaltyBpsCompliance(_royaltyBps) {
     // Verify whitelist requirements
     require(whitelistMintEnabled, 'The whitelist sale is not enabled!');
     bytes32 leaf = keccak256(abi.encodePacked(_msgSender()));
     require(MerkleProof.verify(_merkleProof, merkleRoot, leaf), 'Invalid proof!');
 
     // Verify mint signature and role
-    bytes32 hash = keccak256(abi.encodePacked(this.whitelistMint.selector, StringPacking.encodePacked(_cids), _feeBps, address(this), _msgSender()));
+    bytes32 hash = keccak256(abi.encodePacked(this.whitelistMint.selector, StringPacking.encodePacked(_cids), _royaltyBps, address(this), _msgSender()));
     address signer = ECDSA.recover(hash.toEthSignedMessageHash(), _signature);
     _checkRole(MINTER_ROLE, signer);
 
-    _safeMint(_msgSender(), _cids, _feeBps);
+    _safeMint(_msgSender(), _cids, _royaltyBps);
   }
 
-  function mint(string[] calldata _cids, uint96 _feeBps, bytes memory _signature) public payable whenNotPaused() mintCompliance(_cids.length) mintPriceCompliance(_cids.length) mintFeeCompliance(_feeBps) {
+  function mint(string[] calldata _cids, uint96 _royaltyBps, bytes memory _signature) public payable whenNotPaused() mintCompliance(_cids.length) mintPriceCompliance(_cids.length) royaltyBpsCompliance(_royaltyBps) {
     // Verify mint signature and role
-    bytes32 hash = keccak256(abi.encodePacked(this.mint.selector, StringPacking.encodePacked(_cids), _feeBps, address(this), _msgSender()));
+    bytes32 hash = keccak256(abi.encodePacked(this.mint.selector, StringPacking.encodePacked(_cids), _royaltyBps, address(this), _msgSender()));
     address signer = ECDSA.recover(hash.toEthSignedMessageHash(), _signature);
     _checkRole(MINTER_ROLE, signer);
 
-    _safeMint(_msgSender(), _cids, _feeBps);
+    _safeMint(_msgSender(), _cids, _royaltyBps);
   }
 
-  function mintForAddress(string[] calldata _cids, uint96 _feeBps, address _receiver) public mintCompliance(_cids.length) onlyRole(MINTER_ROLE) {
-    _safeMint(_receiver, _cids, _feeBps);
+  function mintForAddress(string[] calldata _cids, uint96 _royaltyBps, address _receiver) public mintCompliance(_cids.length) onlyRole(MINTER_ROLE) {
+    _safeMint(_receiver, _cids, _royaltyBps);
   }
 
-  function _safeMint(address to, string[] calldata _cids, uint96 _feeBps) internal virtual {
+  function _safeMint(address to, string[] calldata _cids, uint96 _royaltyBps) internal virtual {
     for (uint256 i = 0; i < _cids.length; i++) {
-      require(bytes(_cids[i]).length != 0, 'CID should not be empty!');
+      require(bytes(_cids[i]).length != 0, 'CID can not be empty!');
       require(!cidExists[_cids[i]], 'CID already exists!');
     }
 
@@ -138,7 +136,7 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     for (uint256 i = 0; i < _cids.length; i++) {
       tokenCIDs[tokenId + i] = _cids[i];
       cidExists[_cids[i]] = true;
-      if (_feeBps > 0) _setTokenRoyalty(tokenId + i, to, _feeBps);
+      if (_royaltyBps != 0) _setTokenRoyalty(tokenId + i, to, _royaltyBps);
     }
   }
 
@@ -155,7 +153,7 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
 
     string memory currentBaseURI = _baseURI();
     string memory cid = tokenCIDs[_tokenId];
-    return (bytes(currentBaseURI).length > 0 && bytes(cid).length > 0)
+    return (bytes(currentBaseURI).length != 0 && bytes(cid).length != 0)
       ? string(abi.encodePacked(currentBaseURI, cid, uriSuffix))
       : '';
   }
@@ -166,10 +164,6 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
 
   function setCost(uint256 _cost) public onlyRole(MINTER_ROLE) {
     cost = _cost;
-  }
-
-  function setWhitelistMintCost(uint256 _whitelistMintCost) public onlyRole(MINTER_ROLE) {
-    whitelistMintCost = _whitelistMintCost;
   }
 
   function setMaxSupply(uint256 _maxSupply) public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -206,6 +200,8 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   }
 
   function setTreasury(address _treasury) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(_treasury != treasury, "Treasury address should not be same one");
+
     address oldTreasury = treasury;
     treasury = _treasury;
     emit TreasuryChanged(oldTreasury, treasury);
@@ -215,10 +211,12 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
    * @dev This will transfer the balance to the treasury address.
    * Can only be called by DRAWER_ROLE.
    */
-  function withdraw() public onlyRole(DRAWER_ROLE) nonReentrant {
-    require(treasury != address(0), "forbid withdraw to zero address");
+  function withdraw(uint256 amount) public onlyRole(DRAWER_ROLE) nonReentrant {
+    require(treasury != address(0), "Forbid withdraw to zero address");
+    require(amount != 0, "Withdraw amount must not be zero");
+    require(amount <= address(this).balance, "Withdraw amount will exceed balance");
 
-    (bool os, ) = payable(treasury).call{value: address(this).balance}("");
+    (bool os, ) = payable(treasury).call{value: amount}("");
     require(os);
   }
 
@@ -229,17 +227,18 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   /**
    * @dev This will reset token associated cid and cidExists.
    */
-  function resetToken(uint256 tokenId) public onlyRole(MINTER_ROLE) {
-    require(_exists(tokenId), 'reset of nonexistent token');
-    _resetToken(tokenId);
+  function resetTokenCID(uint256 tokenId) public onlyRole(MINTER_ROLE) {
+    require(_exists(tokenId), 'Reset nonexistent token');
+    _resetTokenCID(tokenId);
   }
 
-  function _resetToken(uint256 tokenId) internal {
+  function _resetTokenCID(uint256 tokenId) internal {
     string memory cid = tokenCIDs[tokenId];
 
-    if (bytes(cid).length > 0) {
+    if (bytes(cid).length != 0) {
       delete tokenCIDs[tokenId];
       delete cidExists[cid];
+      emit TokenCIDReset(tokenId, cid);
     }
   }
 
@@ -254,13 +253,30 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
     _;
   }
 
-  function setTokenRoyalty(uint256 _tokenId, address _receiver, uint96 _feeBps) public onlyOwnerOrApproved(_tokenId) {
+  function setRoyalty(uint256 _tokenId, address _receiver, uint96 _royaltyBps) public onlyOwnerOrApproved(_tokenId) {
     (address receiver, ) = royaltyInfo(_tokenId, 0);
     address owner = ownerOf(_tokenId);
-    require(receiver == address(0) || receiver == owner, 'Royalty receiver must be zero or owner');
+    require(receiver == address(0) || receiver == owner, 'ERC2981: token owner is not royalty receiver');
 
-    if (_receiver != address(0)) _setTokenRoyalty(_tokenId, _receiver, _feeBps);
+    if (_receiver != address(0)) _setTokenRoyalty(_tokenId, _receiver, _royaltyBps);
     else _resetTokenRoyalty(_tokenId);
+  }
+
+  function _setTokenRoyalty(uint256 _tokenId, address _receiver, uint96 _royaltyBps) internal virtual override {
+    super._setTokenRoyalty(_tokenId, _receiver, _royaltyBps);
+    emit RoyaltyChanged(_tokenId, _receiver, _royaltyBps);
+  }
+
+  function renounceRoyalty(uint256 _tokenId) public {
+    (address receiver, ) = royaltyInfo(_tokenId, 0);
+    require(_msgSender() == receiver, 'ERC2981: caller is not royalty receiver');
+
+    _resetTokenRoyalty(_tokenId);
+  }
+
+  function _resetTokenRoyalty(uint256 _tokenId) internal virtual override {
+    super._resetTokenRoyalty(_tokenId);
+    emit RoyaltyChanged(_tokenId, address(0), 0);
   }
 
   /**
@@ -269,7 +285,7 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   function _burn(uint256 tokenId, bool approvalCheck) internal virtual override {
     super._burn(tokenId, approvalCheck);
 
-    _resetToken(tokenId);
     _resetTokenRoyalty(tokenId);
+    _resetTokenCID(tokenId);
   }
 }

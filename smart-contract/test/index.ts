@@ -1,6 +1,6 @@
 import chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
-import { BigNumber, utils } from 'ethers';
+import { constants, BigNumber, utils } from 'ethers';
 import { ethers } from 'hardhat';
 import { MerkleTree } from 'merkletreejs';
 import keccak256 from 'keccak256';
@@ -12,7 +12,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 chai.use(ChaiAsPromised);
 
 // Prevent supply test exceeds block gas limit
-CollectionConfig.maxSupply = 200;
+CollectionConfig.maxSupply = 300;
 
 enum SaleType {
   WHITELIST = CollectionConfig.whitelistSale.price,
@@ -45,17 +45,23 @@ function getPrice(saleType: SaleType, mintAmount: number) {
   return utils.parseEther(saleType.toString()).mul(mintAmount);
 }
 
+function getMessageHash(selector: string, cids: string[], feeBps: number, contractAddress: string, senderAddress: string) {
+  let messageHash = utils.solidityKeccak256(['bytes4', 'string[]', 'uint96', 'address', 'address'], [selector, cids, feeBps, contractAddress, senderAddress]);
+  let messageHashBinary = utils.arrayify(messageHash);
+  return messageHashBinary;
+}
+
 describe(CollectionConfig.contractName, function () {
-  let owner!: SignerWithAddress;
+  let deploy!: SignerWithAddress;
   let whitelistedUser!: SignerWithAddress;
   let holder!: SignerWithAddress;
   let externalUser!: SignerWithAddress;
   let treasury!: SignerWithAddress;
-  let treasurer!: SignerWithAddress;
+  let drawer!: SignerWithAddress;
   let contract!: NftContractType;
 
   before(async function () {
-    [owner, whitelistedUser, holder, externalUser, treasury, treasurer] = await ethers.getSigners();
+    [deploy, whitelistedUser, holder, externalUser, treasury, drawer] = await ethers.getSigners();
   });
 
   it('Contract deployment', async function () {
@@ -82,35 +88,30 @@ describe(CollectionConfig.contractName, function () {
 
   it('Before any sale', async function () {
     // Nobody should be able to mint from a paused contract
-    await expect(contract.connect(whitelistedUser).mint(1, {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The contract is paused!');
-    await expect(contract.connect(whitelistedUser).whitelistMint(1, [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
-    await expect(contract.connect(holder).mint(1, {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The contract is paused!');
-    await expect(contract.connect(holder).whitelistMint(1, [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
-    await expect(contract.connect(owner).mint(1, {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The contract is paused!');
-    await expect(contract.connect(owner).whitelistMint(1, [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
+    await expect(contract.connect(whitelistedUser).mint(['1'], 0, '0x00', {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('Pausable: paused');
+    await expect(contract.connect(whitelistedUser).whitelistMint(['2'], 0, '0x00', [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
+    await expect(contract.connect(holder).mint(['3'], 0, '0x00', {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('Pausable: paused');
+    await expect(contract.connect(holder).whitelistMint(['4'], 0, '0x00', [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
+    await expect(contract.connect(deploy).mint(['5'], 0, '0x00', {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('Pausable: paused');
+    await expect(contract.connect(deploy).whitelistMint(['6'], 0, '0x00', [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
 
     // The owner should always be able to run mintForAddress
-    await (await contract.mintForAddress(1, [await owner.getAddress()])).wait();
-    await (await contract.mintForAddress(1, [await whitelistedUser.getAddress()])).wait();
-    // and batch mint
-    await (await contract.mintForAddress(1, [
-      await owner.getAddress(),
-      await whitelistedUser.getAddress(),
-    ])).wait();
+    await (await contract.mintForAddress(['7'], 100, await deploy.getAddress())).wait();
+    await (await contract.mintForAddress(['8'], 0, await whitelistedUser.getAddress())).wait();
     // But not over the maxMintAmountPerTx
     await expect(contract.mintForAddress(
-      await (await contract.maxMintAmountPerTx()).add(1),
-      [await holder.getAddress()],
+      new Array((await contract.maxMintAmountPerTx()).add(1).toNumber()).fill('9'),
+      0,
+      await holder.getAddress(),
     )).to.be.revertedWith('Invalid mint amount!');
-    // and not over the max supply
-    await expect(contract.mintForAddress(
-      1,
-      new Array(CollectionConfig.maxSupply + 1).fill(await holder.getAddress()),
-    )).to.be.revertedWith('Max supply exceeded!');
+    // And cid can't be empty
+    await expect(contract.mintForAddress([''], 0, await deploy.getAddress())).to.be.revertedWith('CID can not be empty!');
+    // And can't mint same cid twice
+    await expect(contract.mintForAddress(['7'], 0, await deploy.getAddress())).to.be.revertedWith('CID already exists!');
 
     // Check balances
-    expect(await contract.balanceOf(await owner.getAddress())).to.equal(2);
-    expect(await contract.balanceOf(await whitelistedUser.getAddress())).to.equal(2);
+    expect(await contract.balanceOf(await deploy.getAddress())).to.equal(1);
+    expect(await contract.balanceOf(await whitelistedUser.getAddress())).to.equal(1);
     expect(await contract.balanceOf(await holder.getAddress())).to.equal(0);
     expect(await contract.balanceOf(await externalUser.getAddress())).to.equal(0);
   });
@@ -125,44 +126,75 @@ describe(CollectionConfig.contractName, function () {
 
     await contract.setWhitelistMintEnabled(true);
 
+    const selector = contract.interface.getSighash('whitelistMint(string[],uint96,bytes,bytes32[])');
+    // Whitelist mint
     await contract.connect(whitelistedUser).whitelistMint(
-      1,
+      ['11'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['11'], 0, contract.address, await whitelistedUser.getAddress())),
       merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
       {value: getPrice(SaleType.WHITELIST, 1)},
     );
-    // Trying to mint twice
+    // Trying to mint same cid twice
     await expect(contract.connect(whitelistedUser).whitelistMint(
-      1,
+      ['11'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['11'], 0, contract.address, await whitelistedUser.getAddress())),
       merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
       {value: getPrice(SaleType.WHITELIST, 1)},
-    )).to.be.revertedWith('Address already claimed!');
+    )).to.be.revertedWith('CID already exists!');
     // Sending an invalid mint amount
     await expect(contract.connect(whitelistedUser).whitelistMint(
-      await (await contract.maxMintAmountPerTx()).add(1),
+      new Array((await contract.maxMintAmountPerTx()).add(1).toNumber()).fill('12'),
+      0,
+      await deploy.signMessage(getMessageHash(selector, new Array((await contract.maxMintAmountPerTx()).add(1).toNumber()).fill('12'), 0, contract.address, await whitelistedUser.getAddress())),
       merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
       {value: getPrice(SaleType.WHITELIST, await (await contract.maxMintAmountPerTx()).add(1).toNumber())},
     )).to.be.revertedWith('Invalid mint amount!');
+    await expect(contract.connect(whitelistedUser).whitelistMint(
+      [],
+      0,
+      await deploy.signMessage(getMessageHash(selector, [], 0, contract.address, await whitelistedUser.getAddress())),
+      merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
+      {value: getPrice(SaleType.WHITELIST, 0)},
+    )).to.be.revertedWith('Invalid mint amount!');
     // Sending insufficient funds
     await expect(contract.connect(whitelistedUser).whitelistMint(
-      1,
+      ['13'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['13'], 0, contract.address, await whitelistedUser.getAddress())),
       merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
       {value: getPrice(SaleType.WHITELIST, 1).sub(1)},
     )).to.be.rejectedWith(Error, 'insufficient funds for intrinsic transaction cost');
+    // Sending invalid signature
+    await expect(contract.connect(whitelistedUser).whitelistMint(
+      ['14'],
+      0,
+      (await deploy.signMessage(getMessageHash(selector, ['14'], 0, contract.address, await whitelistedUser.getAddress()))).slice(0, -8) + '12345678',
+      merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
+      {value: getPrice(SaleType.WHITELIST, 1)},
+    )).to.be.revertedWith('ECDSA: invalid signature');
     // Pretending to be someone else
     await expect(contract.connect(holder).whitelistMint(
-      1,
+      ['15'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['15'], 0, contract.address, await holder.getAddress())),
       merkleTree.getHexProof(keccak256(await whitelistedUser.getAddress())),
       {value: getPrice(SaleType.WHITELIST, 1)},
     )).to.be.revertedWith('Invalid proof!');
     // Sending an invalid proof
     await expect(contract.connect(holder).whitelistMint(
-      1,
+      ['16'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['16'], 0, contract.address, await holder.getAddress())),
       merkleTree.getHexProof(keccak256(await holder.getAddress())),
       {value: getPrice(SaleType.WHITELIST, 1)},
     )).to.be.revertedWith('Invalid proof!');
     // Sending no proof at all
     await expect(contract.connect(holder).whitelistMint(
-      1,
+      ['17'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['17'], 0, contract.address, await holder.getAddress())),
       [],
       {value: getPrice(SaleType.WHITELIST, 1)},
     )).to.be.revertedWith('Invalid proof!');
@@ -172,8 +204,8 @@ describe(CollectionConfig.contractName, function () {
     await contract.setCost(utils.parseEther(CollectionConfig.preSale.price.toString()));
 
     // Check balances
-    expect(await contract.balanceOf(await owner.getAddress())).to.equal(2);
-    expect(await contract.balanceOf(await whitelistedUser.getAddress())).to.equal(3);
+    expect(await contract.balanceOf(await deploy.getAddress())).to.equal(1);
+    expect(await contract.balanceOf(await whitelistedUser.getAddress())).to.equal(2);
     expect(await contract.balanceOf(await holder.getAddress())).to.equal(0);
     expect(await contract.balanceOf(await externalUser.getAddress())).to.equal(0);
   });
@@ -181,58 +213,80 @@ describe(CollectionConfig.contractName, function () {
   it('Pre-sale (same as public sale)', async function () {
     await contract.setMaxMintAmountPerTx(CollectionConfig.preSale.maxMintAmountPerTx);
     await contract.setPaused(false);
-    await contract.connect(holder).mint(2, {value: getPrice(SaleType.PRE_SALE, 2)});
-    await contract.connect(whitelistedUser).mint(1, {value: getPrice(SaleType.PRE_SALE, 1)});
+    
+    const selector = contract.interface.getSighash('mint(string[],uint96,bytes)');
+    // Pre-sale mint
+    await contract.connect(holder).mint(
+      ['21', '22'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['21', '22'], 0, contract.address, await holder.getAddress())),
+      {value: getPrice(SaleType.PRE_SALE, 2)},
+    );
+    await contract.connect(whitelistedUser).mint(
+      ['23'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['23'], 0, contract.address, await whitelistedUser.getAddress())),
+      {value: getPrice(SaleType.PRE_SALE, 1)},
+    );
     // Sending insufficient funds
-    await expect(contract.connect(holder).mint(1, {value: getPrice(SaleType.PRE_SALE, 1).sub(1)})).to.be.rejectedWith(Error, 'insufficient funds for intrinsic transaction cost');
+    await expect(contract.connect(holder).mint(
+      ['24'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['24'], 0, contract.address, await holder.getAddress())),
+      {value: getPrice(SaleType.PRE_SALE, 1).sub(1)},
+    )).to.be.rejectedWith(Error, 'insufficient funds for intrinsic transaction cost');
     // Sending an invalid mint amount
     await expect(contract.connect(whitelistedUser).mint(
-      await (await contract.maxMintAmountPerTx()).add(1),
+      new Array((await contract.maxMintAmountPerTx()).add(1).toNumber()).fill('25'),
+      0,
+      await deploy.signMessage(getMessageHash(selector, new Array((await contract.maxMintAmountPerTx()).add(1).toNumber()).fill('25'), 0, contract.address, await whitelistedUser.getAddress())),
       {value: getPrice(SaleType.PRE_SALE, await (await contract.maxMintAmountPerTx()).add(1).toNumber())},
+    )).to.be.revertedWith('Invalid mint amount!');
+    await expect(contract.connect(whitelistedUser).mint(
+      [],
+      0,
+      await deploy.signMessage(getMessageHash(selector, [], 0, contract.address, await whitelistedUser.getAddress())),
+      {value: getPrice(SaleType.PRE_SALE, 0)},
     )).to.be.revertedWith('Invalid mint amount!');
     // Sending a whitelist mint transaction
     await expect(contract.connect(whitelistedUser).whitelistMint(
-      1,
+      ['26'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['26'], 0, contract.address, await whitelistedUser.getAddress())),
       [],
       {value: getPrice(SaleType.WHITELIST, 1)},
-    )).to.be.rejectedWith(Error, 'insufficient funds for intrinsic transaction cost');
+    )).to.be.rejectedWith(Error, 'Insufficient funds!');
     
     // Pause pre-sale
     await contract.setPaused(true);
     await contract.setCost(utils.parseEther(CollectionConfig.publicSale.price.toString()));
   });
     
-  it('Owner only functions', async function () {
-    await expect(contract.connect(externalUser).mintForAddress(1, [await externalUser.getAddress()])).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setRevealed(false)).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setCost(utils.parseEther('0.0000001'))).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setMaxMintAmountPerTx(99999)).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setHiddenMetadataUri('INVALID_URI')).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setUriPrefix('INVALID_PREFIX')).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setUriSuffix('INVALID_SUFFIX')).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setPaused(false)).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setMerkleRoot('0x0000000000000000000000000000000000000000000000000000000000000000')).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setWhitelistMintEnabled(false)).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setRoyalty(await externalUser.getAddress(), 250)).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).renounceRoyalty()).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).setWithdrawable(await externalUser.getAddress(), await externalUser.getAddress())).to.be.revertedWith('Ownable: caller is not the owner');
-    await expect(contract.connect(externalUser).withdraw()).to.be.revertedWith('Withdrawable: caller is not the owner nor withdrawer');
+  it('Roles only functions', async function () {
+    await expect(contract.connect(externalUser).mintForAddress(['31'], 0, await externalUser.getAddress())).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setRevealed(false)).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setCost(utils.parseEther('0.0000001'))).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setMaxMintAmountPerTx(99999)).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setHiddenMetadataUri('INVALID_URI')).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setUriPrefix('INVALID_PREFIX')).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setUriSuffix('INVALID_SUFFIX')).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setPaused(false)).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setMerkleRoot('0x0000000000000000000000000000000000000000000000000000000000000000')).to.be.revertedWith('AccessControl: account ');
+    await expect(contract.connect(externalUser).setWhitelistMintEnabled(false)).to.be.revertedWith('AccessControl: account ');
   });
     
   it('Wallet of owner', async function () {
-    expect(await contract.tokensOfOwner(await owner.getAddress())).deep.equal([
+    expect(await contract.tokensOfOwner(await deploy.getAddress())).deep.equal([
       BigNumber.from(1),
-      BigNumber.from(3),
     ]);
     expect(await contract.tokensOfOwner(await whitelistedUser.getAddress())).deep.equal([
       BigNumber.from(2),
-      BigNumber.from(4),
-      BigNumber.from(5),
-      BigNumber.from(8),
+      BigNumber.from(3),
+      BigNumber.from(6),
     ]);
     expect(await contract.tokensOfOwner(await holder.getAddress())).deep.equal([
-      BigNumber.from(6),
-      BigNumber.from(7),
+      BigNumber.from(4),
+      BigNumber.from(5),
     ]);
     expect(await contract.tokensOfOwner(await externalUser.getAddress())).deep.equal([]);
   });
@@ -242,8 +296,8 @@ describe(CollectionConfig.contractName, function () {
       this.skip();
     }
 
-    const alreadyMinted = 8;
-    const maxMintAmountPerTx = 1000;
+    const alreadyMinted = 6;
+    const maxMintAmountPerTx = 10;
     const iterations = Math.floor((CollectionConfig.maxSupply - alreadyMinted) / maxMintAmountPerTx);
     const expectedTotalSupply = iterations * maxMintAmountPerTx + alreadyMinted;
     const lastMintAmount = CollectionConfig.maxSupply - expectedTotalSupply;
@@ -252,25 +306,49 @@ describe(CollectionConfig.contractName, function () {
     await contract.setPaused(false);
     await contract.setMaxMintAmountPerTx(maxMintAmountPerTx);
 
-    await Promise.all([...Array(iterations).keys()].map(async () => await contract.connect(whitelistedUser).mint(maxMintAmountPerTx, {value: getPrice(SaleType.PUBLIC_SALE, maxMintAmountPerTx)})));
+    const selector = contract.interface.getSighash('mint(string[],uint96,bytes)');
+    // Minting
+    await Promise.all([...Array(iterations).keys()].map(async (it) => {
+      let cids = [...Array(maxMintAmountPerTx).keys()].map(i => `${it + 4}${i}`);
+      await contract.connect(whitelistedUser).mint(
+        cids,
+        0,
+        await deploy.signMessage(getMessageHash(selector, cids, 0, contract.address, await whitelistedUser.getAddress())),
+        {value: getPrice(SaleType.PUBLIC_SALE, maxMintAmountPerTx)},
+      );
+    }));
 
     // Try to mint over max supply (before sold-out)
-    await expect(contract.connect(holder).mint(lastMintAmount + 1, {value: getPrice(SaleType.PUBLIC_SALE, lastMintAmount + 1)})).to.be.revertedWith('Max supply exceeded!');
-    await expect(contract.connect(holder).mint(lastMintAmount + 2, {value: getPrice(SaleType.PUBLIC_SALE, lastMintAmount + 2)})).to.be.revertedWith('Max supply exceeded!');
+    await expect(contract.connect(holder).mint(
+      [...Array(lastMintAmount + 1).keys()].map(i => `${iterations + 4}${i}`),
+      0,
+      await deploy.signMessage(getMessageHash(selector, [...Array(lastMintAmount + 1).keys()].map(i => `${iterations + 4}${i}`), 0, contract.address, await holder.getAddress())),
+      {value: getPrice(SaleType.PUBLIC_SALE, lastMintAmount + 1)},
+    )).to.be.revertedWith('Max supply exceeded!');
+    await expect(contract.connect(holder).mint(
+      [...Array(lastMintAmount + 2).keys()].map(i => `${iterations + 4}${i}`),
+      0,
+      await deploy.signMessage(getMessageHash(selector, [...Array(lastMintAmount + 2).keys()].map(i => `${iterations + 4}${i}`), 0, contract.address, await holder.getAddress())),
+      {value: getPrice(SaleType.PUBLIC_SALE, lastMintAmount + 2)},
+    )).to.be.revertedWith('Max supply exceeded!');
 
     expect(await contract.totalSupply()).to.equal(expectedTotalSupply);
 
     // Mint last tokens with owner address and test walletOfOwner(...)
-    await contract.connect(owner).mint(lastMintAmount, {value: getPrice(SaleType.PUBLIC_SALE, lastMintAmount)});
+    await contract.connect(deploy).mint(
+      [...Array(lastMintAmount).keys()].map(i => `${iterations + 4}${i}`),
+      0,
+      await deploy.signMessage(getMessageHash(selector, [...Array(lastMintAmount).keys()].map(i => `${iterations + 4}${i}`), 0, contract.address, await deploy.getAddress())),
+      {value: getPrice(SaleType.PUBLIC_SALE, lastMintAmount)}
+    );
     const expectedWalletOfOwner = [
       BigNumber.from(1),
-      BigNumber.from(3),
     ];
     for (const i of [...Array(lastMintAmount).keys()].reverse()) {
       expectedWalletOfOwner.push(BigNumber.from(CollectionConfig.maxSupply - i));
     }
     expect(await contract.tokensOfOwner(
-      await owner.getAddress(),
+      await deploy.getAddress(),
       {
         // Set gas limit to the maximum value since this function should be used off-chain only and it would fail otherwise...
         gasLimit: BigNumber.from('0xffffffffffffffff'),
@@ -278,7 +356,12 @@ describe(CollectionConfig.contractName, function () {
     )).deep.equal(expectedWalletOfOwner);
 
     // Try to mint over max supply (after sold-out)
-    await expect(contract.connect(whitelistedUser).mint(1, {value: getPrice(SaleType.PUBLIC_SALE, 1)})).to.be.revertedWith('Max supply exceeded!');
+    await expect(contract.connect(whitelistedUser).mint(
+      ['10000000000'],
+      0,
+      await deploy.signMessage(getMessageHash(selector, ['10000000000'], 0, contract.address, await whitelistedUser.getAddress())),
+      {value: getPrice(SaleType.PUBLIC_SALE, 1)}
+    )).to.be.revertedWith('Max supply exceeded!');
 
     expect(await contract.totalSupply()).to.equal(CollectionConfig.maxSupply);
   });
@@ -298,91 +381,85 @@ describe(CollectionConfig.contractName, function () {
     await expect(contract.tokenURI(0)).to.be.revertedWith('ERC721Metadata: URI query for nonexistent token');
 
     // Testing first and last minted tokens
-    expect(await contract.tokenURI(1)).to.equal(`${uriPrefix}1${uriSuffix}`);
-    expect(await contract.tokenURI(totalSupply)).to.equal(`${uriPrefix}${totalSupply}${uriSuffix}`);
+    expect(await contract.tokenURI(1)).to.equal(`${uriPrefix}7${uriSuffix}`);
+    expect(await contract.tokenURI(totalSupply)).to.equal(`${uriPrefix}${process.env.EXTENDED_TESTS === undefined ? '23' : totalSupply.add(33)}${uriSuffix}`);
   });
 
   it('ERC2981 NFT royalty support', async function () {
-    expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
-      ethers.constants.AddressZero,
-      ethers.constants.Zero,
+    expect(await contract.royaltyInfo(BigNumber.from(1), utils.parseEther('10000'))).deep.equal([
+      await deploy.getAddress(),
+      utils.parseEther('100'),
     ]);
 
-    await contract.setRoyalty(await treasury.getAddress(), 250);
+    expect(await contract.royaltyInfo(BigNumber.from(2), utils.parseEther('10000'))).deep.equal([
+      constants.AddressZero,
+      constants.Zero,
+    ]);
 
-    expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
+    await contract.connect(deploy).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 250);
+    expect(await contract.royaltyInfo(BigNumber.from(1), utils.parseEther('10000'))).deep.equal([
       await treasury.getAddress(),
       utils.parseEther('250'),
     ]);
 
-    expect((await contract.queryFilter(await contract.filters.RoyaltyChanged(
-      ethers.constants.AddressZero,
-      null,
-      await treasury.getAddress(),
-      null
-    )))[0].args.slice(0, 4)).deep.equal([
-      ethers.constants.AddressZero,
-      ethers.constants.Zero,
-      await treasury.getAddress(),
-      BigNumber.from(250),
+    await contract.connect(treasury).renounceRoyalty(BigNumber.from(1));
+    expect(await contract.royaltyInfo(BigNumber.from(1), utils.parseEther('10000'))).deep.equal([
+      constants.AddressZero,
+      constants.Zero,
     ]);
 
-    await contract.renounceRoyalty();
+    await expect(contract.connect(deploy).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 20000)
+    ).to.be.revertedWith('ERC2981: royalty fee will exceed salePrice');
 
-    expect(await contract.royaltyInfo(BigNumber.from(0), utils.parseEther('10000'))).deep.equal([
-      ethers.constants.AddressZero,
-      ethers.constants.Zero,
-    ]);
+    await expect(contract.connect(treasury).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 250)
+    ).to.be.revertedWith('ApprovalCallerNotOwnerNorApproved()');
 
-    expect((await contract.queryFilter(await contract.filters.RoyaltyChanged(
-      await treasury.getAddress(),
-      null,
-      ethers.constants.AddressZero,
-      null
-    )))[0].args.slice(0, 4)).deep.equal([
-      await treasury.getAddress(),
-      BigNumber.from(250),
-      ethers.constants.AddressZero,
-      ethers.constants.Zero,
-    ]);
-
-    await expect(contract.setRoyalty(
-      ethers.constants.AddressZero,
-      0
-    )).to.be.revertedWith('Royalty: invalid receiver');
-
-    await expect(contract.setRoyalty(
-      await treasury.getAddress(),
-      20000
-    )).to.be.revertedWith('Royalty: royalty fee will exceed salePrice');
+    await contract.connect(deploy).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 250);
+    await expect(contract.connect(deploy).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 250)
+    ).to.be.revertedWith('ERC2981: token owner is not royalty receiver');
+    await expect(contract.connect(deploy).renounceRoyalty(BigNumber.from(1))
+    ).to.be.revertedWith('ERC2981: caller is not royalty receiver');
   });
 
-  it('Withdrawable', async function () {
-    expect(await contract.withdrawInfo()).deep.equal([
-      await owner.getAddress(),
-      ethers.constants.AddressZero,
-    ]);
+  it('Withdraw', async function () {
+    expect(await contract.treasury()).to.be.equal(constants.AddressZero);
 
-    await contract.setWithdrawable(await treasury.getAddress(), await treasurer.getAddress());
+    await contract.grantRole(await contract.DRAWER_ROLE(), await drawer.getAddress());
+    await contract.setTreasury(await treasury.getAddress());
 
-    expect(await contract.withdrawInfo()).deep.equal([
-      await treasury.getAddress(),
-      await treasurer.getAddress(),
-    ]);
-
-    await expect(contract.setWithdrawable(
-      ethers.constants.AddressZero,
-      ethers.constants.AddressZero,
-    )).to.be.revertedWith('Withdrawable: new receiver account is the zero address');
+    expect(await contract.hasRole(await contract.DRAWER_ROLE(), await drawer.getAddress())).to.be.true;
+    expect(await contract.treasury()).to.be.equal(await treasury.getAddress());
 
     let provider = contract.provider;
     let contractBalance = await provider.getBalance(contract.address);
     let treasuryBalance = await provider.getBalance(await treasury.getAddress());
 
-    await contract.connect(treasurer).withdraw();
-    await contract.withdraw();
+    await contract.connect(drawer).withdraw(contractBalance);
+    await expect(contract.withdraw(contractBalance)).to.be.revertedWith('Withdraw amount will exceed balance');
 
     expect(await provider.getBalance(contract.address)).to.equal(0);
     expect(await provider.getBalance(await treasury.getAddress())).to.equal(treasuryBalance.add(contractBalance));
+  });
+
+
+  it('Reset CID and burn', async function () {
+    const uriPrefix = 'ipfs://__COLLECTION_CID__/';
+    const uriSuffix = '.json';
+    const totalSupply = await contract.totalSupply();
+
+    // Reveal collection
+    await contract.setUriPrefix(uriPrefix);
+    await contract.setUriSuffix(uriSuffix);
+    await contract.setRevealed(true);
+
+    // Reset CID
+    expect(await contract.tokenURI(2)).to.equal(`${uriPrefix}8${uriSuffix}`);
+    expect(await contract.tokenURI(totalSupply)).to.equal(`${uriPrefix}${process.env.EXTENDED_TESTS === undefined ? '23' : totalSupply.add(33)}${uriSuffix}`);
+
+    // Burn first token
+    await contract.connect(deploy).burn(1);
+    expect(await contract.totalSupply()).to.equal(totalSupply.sub(1));
+    await expect(contract.tokenURI(1)).to.be.revertedWith('ERC721Metadata: URI query for nonexistent token');
+    await expect(contract.connect(deploy).burn(2)).to.be.revertedWith('TransferCallerNotOwnerNorApproved()');
   });
 });
