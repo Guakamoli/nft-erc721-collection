@@ -12,7 +12,7 @@ import '@openzeppelin/contracts/utils/cryptography/ECDSA.sol';
 import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
 import './StringPacking.sol';
 
-contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ERC721AQueryable, ERC721ABurnable, ReentrancyGuard {
+contract REVOVideoToken is Context, AccessControlEnumerable, Pausable, ERC2981, ERC721AQueryable, ERC721ABurnable, ReentrancyGuard {
   using ECDSA for bytes32;
 
   bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
