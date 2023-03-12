@@ -30,7 +30,7 @@ const CollectionConfig: CollectionConfigInterface = {
   marketplaceIdentifier: 'my-nft-token',
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
-  royaltyBasisPoint: 250,
+  royaltyBps: 250,
 };
 
 export default CollectionConfig;
