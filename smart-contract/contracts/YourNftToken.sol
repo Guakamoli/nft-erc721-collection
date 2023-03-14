@@ -285,7 +285,7 @@ contract YourNftToken is Context, AccessControlEnumerable, Pausable, ERC2981, ER
   function _burn(uint256 tokenId, bool approvalCheck) internal virtual override {
     super._burn(tokenId, approvalCheck);
 
-    _resetTokenRoyalty(tokenId);
     _resetTokenCID(tokenId);
+    _resetTokenRoyalty(tokenId);
   }
 }
