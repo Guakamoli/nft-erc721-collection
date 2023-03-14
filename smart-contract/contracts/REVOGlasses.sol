@@ -10,7 +10,7 @@ import './Royalty.sol';
 
 uint256 constant MAX_SUPPLY_HARD_LIMIT = 10000;
 
-contract YourNftToken is Context, Ownable, ERC721AQueryable, Royalty, Withdrawable {
+contract REVOGlasses is Context, Ownable, ERC721AQueryable, Royalty, Withdrawable {
   using Strings for uint256;
 
   bytes32 public merkleRoot;

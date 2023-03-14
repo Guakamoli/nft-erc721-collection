@@ -9,11 +9,11 @@ const CollectionConfig: CollectionConfigInterface = {
   // The contract name can be updated using the following command:
   // yarn rename-contract NEW_CONTRACT_NAME
   // Please DO NOT change it manually!
-  contractName: 'YourNftToken',
-  tokenName: 'My NFT Token',
-  tokenSymbol: 'MNT',
+  contractName: 'REVOGlasses',
+  tokenName: 'Revo Glasses',
+  tokenSymbol: 'REVOGLASSES',
   hiddenMetadataUri: 'ipfs://__CID__/hidden.json',
-  maxSupply: 10000,
+  maxSupply: 200,
   whitelistSale: {
     price: 0.05,
     maxMintAmountPerTx: 1,
@@ -27,7 +27,7 @@ const CollectionConfig: CollectionConfigInterface = {
     maxMintAmountPerTx: 5,
   },
   contractAddress: null,
-  marketplaceIdentifier: 'my-nft-token',
+  marketplaceIdentifier: 'revo-glasses',
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
   royaltyBasisPoint: 250,
