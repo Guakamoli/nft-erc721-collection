@@ -89,21 +89,21 @@ describe(CollectionConfig.contractName, function () {
     await expect(contract.connect(owner).mint(1, {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The contract is paused!');
     await expect(contract.connect(owner).whitelistMint(1, [], {value: getPrice(SaleType.WHITELIST, 1)})).to.be.revertedWith('The whitelist sale is not enabled!');
 
-    // The owner should always be able to run mintForAddress
-    await (await contract.mintForAddress(1, [await owner.getAddress()])).wait();
-    await (await contract.mintForAddress(1, [await whitelistedUser.getAddress()])).wait();
+    // The owner should always be able to run airdrops
+    await (await contract.airdrop(1, [await owner.getAddress()])).wait();
+    await (await contract.airdrop(1, [await whitelistedUser.getAddress()])).wait();
     // and batch mint
-    await (await contract.mintForAddress(1, [
+    await (await contract.airdrop(1, [
       await owner.getAddress(),
       await whitelistedUser.getAddress(),
     ])).wait();
     // But not over the maxMintAmountPerTx
-    await expect(contract.mintForAddress(
+    await expect(contract.airdrop(
       await (await contract.maxMintAmountPerTx()).add(1),
       [await holder.getAddress()],
     )).to.be.revertedWith('Invalid mint amount!');
     // and not over the max supply
-    await expect(contract.mintForAddress(
+    await expect(contract.airdrop(
       1,
       new Array(CollectionConfig.maxSupply + 1).fill(await holder.getAddress()),
     )).to.be.revertedWith('Max supply exceeded!');
@@ -203,9 +203,10 @@ describe(CollectionConfig.contractName, function () {
   });
     
   it('Owner only functions', async function () {
-    await expect(contract.connect(externalUser).mintForAddress(1, [await externalUser.getAddress()])).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(contract.connect(externalUser).airdrop(1, [await externalUser.getAddress()])).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setRevealed(false)).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setCost(utils.parseEther('0.0000001'))).to.be.revertedWith('Ownable: caller is not the owner');
+    await expect(contract.connect(externalUser).setMaxSupply(10000)).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setMaxMintAmountPerTx(99999)).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setHiddenMetadataUri('INVALID_URI')).to.be.revertedWith('Ownable: caller is not the owner');
     await expect(contract.connect(externalUser).setUriPrefix('INVALID_PREFIX')).to.be.revertedWith('Ownable: caller is not the owner');
@@ -243,7 +244,7 @@ describe(CollectionConfig.contractName, function () {
     }
 
     const alreadyMinted = 8;
-    const maxMintAmountPerTx = 1000;
+    const maxMintAmountPerTx = 10;
     const iterations = Math.floor((CollectionConfig.maxSupply - alreadyMinted) / maxMintAmountPerTx);
     const expectedTotalSupply = iterations * maxMintAmountPerTx + alreadyMinted;
     const lastMintAmount = CollectionConfig.maxSupply - expectedTotalSupply;
@@ -300,6 +301,15 @@ describe(CollectionConfig.contractName, function () {
     // Testing first and last minted tokens
     expect(await contract.tokenURI(1)).to.equal(`${uriPrefix}1${uriSuffix}`);
     expect(await contract.tokenURI(totalSupply)).to.equal(`${uriPrefix}${totalSupply}${uriSuffix}`);
+  });
+
+  it('Set max supply', async function () {
+    await expect(contract.setMaxSupply((await contract.maxSupply()).sub(1))).to.be.revertedWith('Max supply cannot be decreased!');
+    await expect(contract.setMaxSupply(10001)).to.be.revertedWith('Max supply exceeds hard limit!');
+
+    const maxSupply = await contract.maxSupply();
+    await contract.setMaxSupply(maxSupply.add(1));
+    expect(await contract.maxSupply()).to.equal(maxSupply.add(1));
   });
 
   it('ERC2981 NFT royalty support', async function () {

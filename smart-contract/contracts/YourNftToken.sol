@@ -8,8 +8,9 @@ import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
 import './Withdrawable.sol';
 import './Royalty.sol';
 
-contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
+uint256 constant MAX_SUPPLY_HARD_LIMIT = 10000;
 
+contract YourNftToken is Context, Ownable, ERC721AQueryable, Royalty, Withdrawable {
   using Strings for uint256;
 
   bytes32 public merkleRoot;
@@ -35,10 +36,12 @@ contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
     uint256 _maxMintAmountPerTx,
     string memory _hiddenMetadataUri
   ) ERC721A(_tokenName, _tokenSymbol) {
-    setCost(_cost);
+    require(_maxSupply <= MAX_SUPPLY_HARD_LIMIT, 'Max supply exceeds hard limit!');
+
+    cost = _cost;
     maxSupply = _maxSupply;
-    setMaxMintAmountPerTx(_maxMintAmountPerTx);
-    setHiddenMetadataUri(_hiddenMetadataUri);
+    maxMintAmountPerTx = _maxMintAmountPerTx;
+    hiddenMetadataUri = _hiddenMetadataUri;
   }
 
   function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, Royalty) returns (bool) {
@@ -73,13 +76,13 @@ contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
     _safeMint(_msgSender(), _mintAmount);
   }
 
-  function mintForAddress(uint256 _mintAmount, address[] calldata _receiver) public onlyOwner {
+  function airdrop(uint256 _mintAmount, address[] calldata _receivers) public onlyOwner {
     // Verify airdrop requirements
     require(_mintAmount > 0 && _mintAmount <= maxMintAmountPerTx, 'Invalid mint amount!');
-    require(totalSupply() + _mintAmount * _receiver.length <= maxSupply, 'Max supply exceeded!');
+    require(totalSupply() + _mintAmount * _receivers.length <= maxSupply, 'Max supply exceeded!');
 
-    for (uint256 i = 0; i < _receiver.length; i++) {
-      _safeMint(_receiver[i], _mintAmount);
+    for (uint256 i = 0; i < _receivers.length; i++) {
+      _safeMint(_receivers[i], _mintAmount);
     }
   }
 
@@ -106,6 +109,12 @@ contract YourNftToken is Ownable, ERC721AQueryable, Royalty, Withdrawable {
 
   function setCost(uint256 _cost) public onlyOwner {
     cost = _cost;
+  }
+
+  function setMaxSupply(uint256 _maxSupply) public onlyOwner {
+    require(_maxSupply <= MAX_SUPPLY_HARD_LIMIT, 'Max supply exceeds hard limit!');
+    require(_maxSupply >= maxSupply, 'Max supply cannot be decreased!');
+    maxSupply = _maxSupply;
   }
 
   function setMaxMintAmountPerTx(uint256 _maxMintAmountPerTx) public onlyOwner {
