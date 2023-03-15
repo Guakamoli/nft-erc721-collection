@@ -10,8 +10,8 @@ const CollectionConfig: CollectionConfigInterface = {
   // yarn rename-contract NEW_CONTRACT_NAME
   // Please DO NOT change it manually!
   contractName: 'REVOGlasses',
-  tokenName: 'Revo Glasses',
-  tokenSymbol: 'REVOGLASSES',
+  tokenName: 'REVO The Glasses',
+  tokenSymbol: 'THE GLASSES',
   hiddenMetadataUri: 'ipfs://__CID__/hidden.json',
   maxSupply: 200,
   whitelistSale: {
@@ -27,10 +27,11 @@ const CollectionConfig: CollectionConfigInterface = {
     maxMintAmountPerTx: 5,
   },
   contractAddress: null,
-  marketplaceIdentifier: 'revo-glasses',
+  marketplaceIdentifier: 'revo-the-glasses',
   marketplaceConfig: Marketplaces.openSea,
   whitelistAddresses,
-  royaltyBasisPoint: 250,
+  treasuryAddress: '0xc7b562f701F9F19fc936513D6d4576A85eDF19aD',
+  royaltyBasisPoint: 750,
 };
 
 export default CollectionConfig;
