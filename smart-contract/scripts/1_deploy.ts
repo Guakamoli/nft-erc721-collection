@@ -19,6 +19,9 @@ async function main() {
 
   await contract.deployed();
 
+  if (CollectionConfig.treasuryAddress !== '_REPLACE_WITH_REAL_ADDRESSES___') {
+    await contract.setTreasury(CollectionConfig.treasuryAddress);
+  }
   console.log('Contract deployed to:', contract.address);
 }
 
