@@ -6,9 +6,9 @@ async function main() {
   const contract = await NftContractProvider.getContract();
 
   // Airdrop mints
-  for (let i = 0; i < airdropAddresses.length; i += 100) {
+  for (let i = 0; i < airdropAddresses.length; i += 20) {
     console.log('Airdroping...');
-    let batchAddrs = airdropAddresses.slice(i, i + 100);
+    let batchAddrs = airdropAddresses.slice(i, i + 20);
     await (await contract.airdrop(1, batchAddrs)).wait();
   }
 
