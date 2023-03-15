@@ -19,9 +19,10 @@ async function main() {
 
   await contract.deployed();
 
-  await contract.setRoyalty(CollectionConfig.treasuryAddress, CollectionConfig.royaltyBasisPoint);
-  await contract.setWithdrawable(CollectionConfig.treasuryAddress, ethers.constants.AddressZero);
-
+  if (CollectionConfig.treasuryAddress !== '_REPLACE_WITH_REAL_ADDRESSES___') {
+    await contract.setRoyalty(CollectionConfig.treasuryAddress, CollectionConfig.royaltyBasisPoint);
+    await contract.setWithdrawable(CollectionConfig.treasuryAddress, ethers.constants.AddressZero);
+  }
   console.log('Contract deployed to:', contract.address);
 }
 
