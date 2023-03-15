@@ -1,6 +1,6 @@
 import chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
-import { constants, BigNumber, utils } from 'ethers';
+import { BigNumber, utils } from 'ethers';
 import { ethers } from 'hardhat';
 import { MerkleTree } from 'merkletreejs';
 import keccak256 from 'keccak256';
@@ -392,8 +392,8 @@ describe(CollectionConfig.contractName, function () {
     ]);
 
     expect(await contract.royaltyInfo(BigNumber.from(2), utils.parseEther('10000'))).deep.equal([
-      constants.AddressZero,
-      constants.Zero,
+      ethers.constants.AddressZero,
+      ethers.constants.Zero,
     ]);
 
     await contract.connect(deploy).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 250);
@@ -404,8 +404,8 @@ describe(CollectionConfig.contractName, function () {
 
     await contract.connect(treasury).renounceRoyalty(BigNumber.from(1));
     expect(await contract.royaltyInfo(BigNumber.from(1), utils.parseEther('10000'))).deep.equal([
-      constants.AddressZero,
-      constants.Zero,
+      ethers.constants.AddressZero,
+      ethers.constants.Zero,
     ]);
 
     await expect(contract.connect(deploy).setRoyalty(BigNumber.from(1), await treasury.getAddress(), 20000)
@@ -422,7 +422,7 @@ describe(CollectionConfig.contractName, function () {
   });
 
   it('Withdraw', async function () {
-    expect(await contract.treasury()).to.be.equal(constants.AddressZero);
+    expect(await contract.treasury()).to.be.equal(ethers.constants.AddressZero);
 
     await contract.grantRole(await contract.DRAWER_ROLE(), await drawer.getAddress());
     await contract.setTreasury(await treasury.getAddress());
